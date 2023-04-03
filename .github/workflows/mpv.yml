@@ -1,4 +1,5 @@
 name: MPV
+run-name: ${{ inputs.run_name }}
 
 on: 
   # schedule:
@@ -19,18 +20,21 @@ on:
       needclean:
         description: 'Build without cache'
         required: false
-        default: 'false'
+        default: false
         type: boolean
       release:
         description: "Publish a release"
         required: false
-        default: 'false'
+        default: false
         type: boolean
       command:
         description: 'input command you want to run before build'
         required: false
       cache_id:
         description: 'input cache_id if you want to renew cache'
+        required: false
+      run_name:
+        description: 'The name displayed in the list of workflow runs'
         required: false
 
 # Workflow level env does not work properly in all fields.
@@ -48,8 +52,8 @@ jobs:
     steps:
       - name: Generate cache_id
         run: |
-          if [ "${{ github.event.inputs.cache_id }}" ] ; then
-            echo "cache_id=${{ github.event.inputs.cache_id }}" >> $GITHUB_ENV
+          if [ "${{ inputs.cache_id }}" ] ; then
+            echo "cache_id=${{ inputs.cache_id }}" >> $GITHUB_ENV
           else
             echo "cache_id=$(echo $RANDOM | md5sum | head -c 20)" >> $GITHUB_ENV
           fi
@@ -65,7 +69,7 @@ jobs:
             core.exportVariable('sha', String(commit.data.sha))
             
             let matrix = {};
-            let build_target = "${{ github.event.inputs.build_target }}"
+            let build_target = "${{ inputs.build_target }}"
             switch ( build_target ) {
               case "32bit":
                 matrix.bit = ["32"];
@@ -110,7 +114,7 @@ jobs:
           mkdir -p /home/opt/7zip
           wget -qO - https://www.7-zip.org/a/7z2201-linux-x64.tar.xz | tar -xJf - -C /home/opt/7zip 7zzs
           sudo ln -s /home/opt/7zip/7zzs /usr/bin/7z
-          pip3 install -U setuptools rst2pdf mako jsonschema https://github.com/mesonbuild/meson/archive/refs/heads/master.zip
+          pip3 install -U setuptools rst2pdf mako jsonschema meson
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global pull.rebase true
@@ -133,16 +137,25 @@ jobs:
 
       - name: Restore Source Cache
         if: ${{ github.event.inputs.needclean != 'true' }}
-        uses: actions/cache/restore@v3.2.2
+        uses: actions/cache/restore@v3.3.1
         id: cache_source
         with:
           path: ${{ github.workspace }}/mpv-winbuild-cmake/src_packages
           key: ${{ runner.os }}-source-${{ env.cache_suffix }}
           restore-keys: |
             ${{ runner.os }}-source
+      - name: Restore Rust Cache
+        if: ${{ github.event.inputs.needclean != 'true' }}
+        uses: actions/cache/restore@v3.3.1
+        id: cache_rust
+        with:
+          path: ${{ github.workspace }}/mpv-winbuild-cmake/install_rustup
+          key: ${{ runner.os }}-rust-${{ env.cache_suffix }}
+          restore-keys: |
+            ${{ runner.os }}-rust
       - name: Restore Build Cache
         if: ${{ github.event.inputs.needclean != 'true' }}
-        uses: actions/cache/restore@v3.2.2
+        uses: actions/cache/restore@v3.3.1
         id: cache_build
         with:
           path: ${{ github.workspace }}/mpv-winbuild-cmake/build${{ matrix.bit }}
@@ -151,7 +164,7 @@ jobs:
             ${{ runner.os }}-mpv-build${{ matrix.bit }}
 
       - name: Running custom command
-        if: ${{ github.event.inputs.command != '' }}
+        if: ${{ inputs.command != '' }}
         shell: bash
         continue-on-error: true
         run: |
@@ -183,7 +196,7 @@ jobs:
             fi
           }
           set -x
-          ${{ github.event.inputs.command }}
+          ${{ inputs.command }}
       - name: Build
         id: build
         shell: bash
@@ -268,13 +281,19 @@ jobs:
 
       - name: Save Sources Cache
         if: ${{ github.ref_name == 'main' }}
-        uses: actions/cache/save@v3.2.2
+        uses: actions/cache/save@v3.3.1
         with:
           path: ${{ github.workspace }}/mpv-winbuild-cmake/src_packages
           key: ${{ runner.os }}-source-${{ env.cache_suffix }}
+      - name: Save Rust Cache
+        if: ${{ github.ref_name == 'main' }}
+        uses: actions/cache/save@v3.3.1
+        with:
+          path: ${{ github.workspace }}/mpv-winbuild-cmake/install_rustup
+          key: ${{ runner.os }}-rust-${{ env.cache_suffix }}
       - name: Save Build Cache
         if: ${{ github.ref_name == 'main' }}
-        uses: actions/cache/save@v3.2.2
+        uses: actions/cache/save@v3.3.1
         with:
           path: ${{ github.workspace }}/mpv-winbuild-cmake/build${{ matrix.bit }}
           key: ${{ runner.os }}-mpv-build${{ matrix.bit }}-${{ env.cache_suffix }}
