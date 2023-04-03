@@ -124,8 +124,9 @@ jobs:
       - name: Checkout toolchain
         uses: actions/checkout@v3
         with:
-          repository: alexmercerind/mpv-win32-cmake
+          repository: media-kit/libmpv-win32-cmake
           path: mpv-winbuild-cmake
+          ref: video
       - name: Get Params
         run: |
           echo "sha=${{ fromJson(needs.params.outputs.params).sha }}" >> $GITHUB_ENV
