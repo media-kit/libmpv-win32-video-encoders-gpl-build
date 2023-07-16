@@ -126,7 +126,7 @@ jobs:
         with:
           repository: media-kit/libmpv-win32-cmake
           path: mpv-winbuild-cmake
-          ref: audio
+          ref: main
       - name: Get Params
         run: |
           echo "sha=${{ fromJson(needs.params.outputs.params).sha }}" >> $GITHUB_ENV
